@@ -1,235 +1,139 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Liste de courses</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: #f7f7f7;
+<!-- Intégration Firebase avec mise à jour en temps réel -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue, push, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBjCe1VaT6UIqJ69FZaE-UkyDk04YkUYhM",
+    authDomain: "familygrocerylist-3a4c2.firebaseapp.com",
+    databaseURL: "https://familygrocerylist-3a4c2-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "familygrocerylist-3a4c2",
+    storageBucket: "familygrocerylist-3a4c2.firebasestorage.app",
+    messagingSenderId: "377144697868",
+    appId: "1:377144697868:web:3e96275e36304e3e42ba29",
+    measurementId: "G-BJFY6DR652"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  let data = {};
+  let checkedItems = {};
+
+  function renderList(filtered = null) {
+    const container = document.getElementById("list-container");
+    container.innerHTML = "";
+    const dataToRender = filtered || data;
+
+    for (const category in dataToRender) {
+      const section = document.createElement("div");
+      section.className = "category";
+      section.innerHTML = `<h3>${category}</h3>`;
+
+      dataToRender[category].forEach((item) => {
+        const itemDiv = document.createElement("div");
+        itemDiv.className = "item";
+        const isChecked = checkedItems[category]?.includes(item);
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = isChecked;
+        checkbox.addEventListener("change", () => {
+          if (!checkedItems[category]) checkedItems[category] = [];
+          if (checkbox.checked) {
+            if (!checkedItems[category].includes(item)) {
+              checkedItems[category].push(item);
+            }
+          } else {
+            checkedItems[category] = checkedItems[category].filter(i => i !== item);
+          }
+          set(ref(db, 'checkedItems'), checkedItems);
+        });
+
+        const label = document.createElement("span");
+        label.textContent = item;
+
+        itemDiv.appendChild(checkbox);
+        itemDiv.appendChild(label);
+        section.appendChild(itemDiv);
+      });
+
+      container.appendChild(section);
     }
-    header {
-      background-color: #a8dadc;
-      padding: 1rem;
-      text-align: center;
-      font-size: 1.5rem;
-    }
-    #list-container {
-      padding: 1rem;
-    }
-    .category {
-      margin-bottom: 1.5rem;
-    }
-    .category h3 {
-      color: #457b9d;
-      margin-bottom: 0.5rem;
-    }
-    .item {
-      display: flex;
-      align-items: center;
-      margin-bottom: 0.5rem;
-    }
-    .item input[type='checkbox'] {
-      margin-right: 0.5rem;
-    }
-    footer {
-      position: fixed;
-      bottom: 0;
-      width: 100%;
-      background-color: #f1faee;
-      display: flex;
-      justify-content: space-around;
-      padding: 1rem 0;
-    }
-    .modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0,0,0,0.5);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 10;
-    }
-    .modal-content {
-      background: white;
-      padding: 2rem;
-      border-radius: 8px;
-      width: 80%;
-      max-width: 400px;
-    }
-    .modal-content input, .modal-content select {
-      width: 100%;
-      margin-top: 0.5rem;
-      margin-bottom: 1rem;
-      padding: 0.5rem;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-    }
-    .modal-content button {
-      margin-right: 0.5rem;
-      padding: 0.5rem 1rem;
-      background: #1d3557;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .modal-content button:last-child {
-      background: #e63946;
-    }
-  </style>
-</head>
-<body>
-  <header>Ma liste de courses</header>
-  <div id="list-container"></div>
-  <footer>
-    <button onclick="addItem()">Ajouter article</button>
-    <button onclick="addCategory()">Ajouter rayon</button>
-    <button onclick="checkAll()">Tout cocher</button>
-    <button onclick="filterItems()">Filtrer</button>
-    <button onclick="resetFilters()">Réinitialiser</button>
-  </footer>
-  <div id="loginModal" class="modal">
-    <div class="modal-content">
-      <h3>Connexion</h3>
-      <label>Adresse email :</label>
-      <input type="email" id="emailInput" placeholder="Entrez votre email">
-      <div id="errorMsg" style="color:red; display:none; margin-bottom:1rem;"></div>
-      <button onclick="submitLogin()">Se connecter</button>
-    </div>
-  </div>
-  <script>
-    let defaultData = {
-      "Fruits et légumes 🥦": [],
-      "Boucherie 🥩": [],
-      "Poissonnerie 🐟": [],
-      "Charcuterie 🍖": [],
-      "Crèmerie 🧀": [],
-      "Épicerie sucrée 🍫": [],
-      "Épicerie salée 🥫": [],
-      "Surgelés ❄️": [],
-      "Boissons 🥤": [],
-      "Boulangerie 🥖": [],
-      "Pâtisserie 🍰": [],
-      "Produits frais 🧈": [],
-      "Hygiène 🧼": [],
-      "Entretien 🧽": [],
-      "Animalerie 🐶": [],
-      "Bébé 👶": [],
-      "Divers 📦": []
+  }
+
+  function filterItems() {
+    const wrapper = document.createElement("div");
+    const categoryOptions = Object.keys(data).map(cat => `<option value="${cat}">${cat}</option>`).join("");
+
+    wrapper.innerHTML = `
+      <div>
+        <label>Filtrer par rayon :<br>
+          <select id='filterCategory'>
+            <option value=''>-- Tous --</option>
+            ${categoryOptions}
+          </select>
+        </label><br>
+        <label>Ou filtrer par lettre initiale :<br>
+          <input type='text' id='filterLetter' maxlength='1' placeholder='Ex: A'>
+        </label>
+      </div>
+    `;
+
+    const popup = document.createElement("div");
+    popup.className = "modal";
+    popup.innerHTML = `<div class='modal-content'>${wrapper.innerHTML}<br><button id='applyFilter'>Appliquer</button> <button onclick='this.parentNode.parentNode.remove()'>Annuler</button></div>`;
+    document.body.appendChild(popup);
+
+    document.getElementById("applyFilter").onclick = () => {
+      const selectedCategory = document.getElementById("filterCategory").value;
+      const letter = document.getElementById("filterLetter").value.toUpperCase();
+
+      let filtered = {};
+
+      for (const category in data) {
+        if (selectedCategory && category !== selectedCategory) continue;
+
+        const filteredItems = data[category].filter(item => {
+          return !letter || item.toUpperCase().startsWith(letter);
+        });
+
+        if (filteredItems.length > 0) {
+          filtered[category] = filteredItems;
+        }
+      }
+      document.body.removeChild(popup);
+      renderList(filtered);
     };
+  }
 
-    let data = JSON.parse(localStorage.getItem("groceryData")) || structuredClone(defaultData);
-    let checkedItems = JSON.parse(localStorage.getItem("checkedItems")) || {};
-    let authorizedUsers = JSON.parse(localStorage.getItem("authorizedUsers")) || ["mouchet.family@gmail.com"];
-    let currentUser = null;
-    let lastUsedCategory = localStorage.getItem("lastUsedCategory") || null;
+  function addCategory(categoryName) {
+    if (!data[categoryName]) {
+      data[categoryName] = [];
+      set(ref(db, 'data'), data);
+    }
+  }
 
-    function submitLogin() {
-      const email = document.getElementById("emailInput").value;
-      const errorMsg = document.getElementById("errorMsg");
-      errorMsg.style.display = "none";
+  function addItemToCategory(categoryName, itemName) {
+    if (!data[categoryName]) data[categoryName] = [];
+    if (!data[categoryName].includes(itemName)) {
+      data[categoryName].push(itemName);
+      set(ref(db, 'data'), data);
+    }
+  }
 
-      if (!email) {
-        errorMsg.textContent = "Veuillez entrer un email.";
-        errorMsg.style.display = "block";
-        return;
-      }
-      if (!authorizedUsers.includes(email)) {
-        errorMsg.textContent = "Accès refusé.";
-        errorMsg.style.display = "block";
-        return;
-      }
-      currentUser = email;
-      document.getElementById("loginModal").style.display = "none";
+  // Mise à jour en temps réel des données et cases cochées
+  onValue(ref(db, 'data'), snapshot => {
+    if (snapshot.exists()) {
+      data = snapshot.val();
       renderList();
     }
+  });
 
-    function renderList() {
-      const container = document.getElementById("list-container");
-      container.innerHTML = "";
-      for (const category in data) {
-        const section = document.createElement("div");
-        section.className = "category";
-        section.innerHTML = `<h3>${category}</h3>`;
-        data[category].forEach((item) => {
-          const itemDiv = document.createElement("div");
-          itemDiv.className = "item";
-          itemDiv.innerHTML = `<input type='checkbox'> <span>${item}</span>`;
-          section.appendChild(itemDiv);
-        });
-        container.appendChild(section);
-      }
+  onValue(ref(db, 'checkedItems'), snapshot => {
+    if (snapshot.exists()) {
+      checkedItems = snapshot.val();
+      renderList();
     }
-
-    function addItem() {
-      let categoryNames = Object.keys(data);
-      let selectHTML = '<select id="categorySelect">';
-      categoryNames.forEach(cat => {
-        const selected = (cat === lastUsedCategory) ? 'selected' : '';
-        selectHTML += `<option value="${cat}" ${selected}>${cat}</option>`;
-      });
-      selectHTML += '</select>';
-      const wrapper = document.createElement("div");
-      wrapper.innerHTML = `<div><label>Choisissez un rayon :<br>${selectHTML}</label><br><label>Nom de l'article :<input id='itemInput'></label></div>`;
-
-      const popup = document.createElement("div");
-      popup.className = "modal";
-      popup.innerHTML = `<div class='modal-content'>${wrapper.innerHTML}<br><button id='saveItem'>Ajouter</button> <button onclick='this.parentNode.parentNode.remove()'>Annuler</button></div>`;
-      document.body.appendChild(popup);
-
-      document.getElementById("saveItem").onclick = () => {
-        const selectedCategory = document.getElementById("categorySelect").value;
-        const item = document.getElementById("itemInput").value.trim();
-        if (!item) return alert("Veuillez entrer un article.");
-        data[selectedCategory].push(item);
-        lastUsedCategory = selectedCategory;
-        localStorage.setItem("lastUsedCategory", lastUsedCategory);
-        localStorage.setItem("groceryData", JSON.stringify(data));
-        document.body.removeChild(popup);
-        renderList();
-      }
-    }
-
-    function addCategory() {
-      const wrapper = document.createElement("div");
-      wrapper.innerHTML = `<div><label>Nom du nouveau rayon :<input id='categoryInput'></label></div>`;
-      const popup = document.createElement("div");
-      popup.className = "modal";
-      popup.innerHTML = `<div class='modal-content'>${wrapper.innerHTML}<br><button id='saveCategory'>Ajouter</button> <button onclick='this.parentNode.parentNode.remove()'>Annuler</button></div>`;
-      document.body.appendChild(popup);
-
-      document.getElementById("saveCategory").onclick = () => {
-        const newCategory = document.getElementById("categoryInput").value.trim();
-        if (!newCategory) return alert("Veuillez entrer un nom de rayon.");
-        if (data[newCategory]) return alert("Ce rayon existe déjà.");
-        data[newCategory] = [];
-        localStorage.setItem("groceryData", JSON.stringify(data));
-        document.body.removeChild(popup);
-        renderList();
-      }
-    }
-
-    function checkAll() {
-      document.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = true);
-    }
-
-    function filterItems() {
-      alert("Fonction de filtre à implémenter.");
-    }
-
-    function resetFilters() {
-      alert("Réinitialisation des filtres à implémenter.");
-    }
-
-    window.onload = () => {
-      document.getElementById("loginModal").style.display = "flex";
-    };
-  </script>
-</body>
-</html>
+  });
+</script>
