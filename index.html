@@ -211,6 +211,167 @@
   </style>
 </head>
 <body>
-<!-- le script reste inchangé ici -->
+<header>
+  <div class="title">Grocery List</div>
+  <div id="filter-indicator"></div>
+</header>
+
+<div class="container" id="list-container"></div>
+
+<button class="add-btn" onclick="addItem()">+</button>
+
+<footer>
+  <button class="footer-btn" onclick="addCategory()">➕ Rayon</button>
+  <button class="footer-btn" onclick="checkAll()">✔ Tout</button>
+  <button class="footer-btn" onclick="filterItems()">🔍 Filtrer</button>
+  <button class="footer-btn" onclick="resetFilters()">❌</button>
+</footer>
+
+<script>
+let data = JSON.parse(localStorage.getItem("groceryData")) || {};
+let checkedItems = JSON.parse(localStorage.getItem("checkedItems")) || {};
+let activeFilterCategory = null;
+let activeFilterLetter = null;
+
+function saveData() {
+  localStorage.setItem("groceryData", JSON.stringify(data));
+  localStorage.setItem("checkedItems", JSON.stringify(checkedItems));
+}
+
+function renderList() {
+  const container = document.getElementById("list-container");
+  container.innerHTML = "";
+  const indicator = document.getElementById("filter-indicator");
+  let filters = [];
+  if (activeFilterCategory) filters.push(`Rayon: ${activeFilterCategory}`);
+  if (activeFilterLetter) filters.push(`Lettre: ${activeFilterLetter.toUpperCase()}`);
+  indicator.textContent = filters.length ? `Filtres actifs – ${filters.join(" | ")}` : "";
+
+  for (const category in data) {
+    if (activeFilterCategory && category !== activeFilterCategory) continue;
+    const section = document.createElement("div");
+    section.className = "category";
+    section.innerHTML = `<h3 onclick="renameCategory('${category}')">${category}</h3>`;
+    data[category].forEach((item, index) => {
+      if (activeFilterLetter && !item.toLowerCase().startsWith(activeFilterLetter.toLowerCase())) return;
+      const key = `${category}:${item}`;
+      const itemDiv = document.createElement("div");
+      itemDiv.className = "item";
+      const checked = checkedItems[key] ? "checked" : "";
+      itemDiv.innerHTML = `<input type="checkbox" ${checked} onchange="toggleCheck('${category}', '${item}')"><span onclick="renameItem('${category}', ${index})">${item}</span>`;
+      section.appendChild(itemDiv);
+    });
+    container.appendChild(section);
+  }
+}
+
+function addCategory() {
+  const name = prompt("Nom du rayon :");
+  if (name && !data[name]) {
+    data[name] = [];
+    saveData();
+    renderList();
+  }
+}
+
+function addItem() {
+  const categories = Object.keys(data);
+  if (!categories.length) return alert("Ajoutez d'abord un rayon.");
+  const last = categories[categories.length - 1];
+  const selected = prompt(`Dans quel rayon ?
+${categories.join(", ")}
+(Par défaut : ${last})`) || last;
+  if (!data[selected]) return;
+  const name = prompt("Nom de l'article :");
+  if (name) {
+    data[selected].push(name);
+    saveData();
+    renderList();
+  }
+}
+
+function toggleCheck(category, item) {
+  const key = `${category}:${item}`;
+  checkedItems[key] = !checkedItems[key];
+  saveData();
+}
+
+function checkAll() {
+  for (const category in data) {
+    data[category].forEach(item => {
+      const key = `${category}:${item}`;
+      checkedItems[key] = true;
+    });
+  }
+  saveData();
+  renderList();
+}
+
+function resetFilters() {
+  activeFilterCategory = null;
+  activeFilterLetter = null;
+  renderList();
+}
+
+function filterItems() {
+  const categories = Object.keys(data);
+  const choice = prompt("Filtrer par :
+1. Rayon
+2. Première lettre
+3. Les deux
+4. Réinitialiser
+(Entrez 1, 2, 3 ou 4)");
+
+  if (choice === "4") return resetFilters();
+  if (choice === "1" || choice === "3") {
+    const selectedCategory = prompt(`Choisir un rayon :
+${categories.join(', ')}`);
+    if (selectedCategory && categories.includes(selectedCategory)) activeFilterCategory = selectedCategory;
+  }
+  if (choice === "2" || choice === "3") {
+    const letter = prompt("Filtrer les articles commençant par la lettre :");
+    if (letter && letter.length === 1) activeFilterLetter = letter;
+  }
+  renderList();
+}
+
+function renameItem(category, index) {
+  const current = data[category][index];
+  const newName = prompt("Renommer l'article :", current);
+  if (newName && newName !== current) {
+    const oldKey = `${category}:${current}`;
+    const newKey = `${category}:${newName}`;
+    if (checkedItems[oldKey]) {
+      checkedItems[newKey] = true;
+      delete checkedItems[oldKey];
+    }
+    data[category][index] = newName;
+    saveData();
+    renderList();
+  }
+}
+
+function renameCategory(oldName) {
+  const newName = prompt("Renommer le rayon :", oldName);
+  if (newName && newName !== oldName) {
+    data[newName] = data[oldName];
+    delete data[oldName];
+    const newChecked = {};
+    for (const key in checkedItems) {
+      if (key.startsWith(`${oldName}:`)) {
+        const itemName = key.split(':')[1];
+        newChecked[`${newName}:${itemName}`] = checkedItems[key];
+      } else {
+        newChecked[key] = checkedItems[key];
+      }
+    }
+    checkedItems = newChecked;
+    saveData();
+    renderList();
+  }
+}
+
+renderList();
+</script>
 </body>
 </html>
