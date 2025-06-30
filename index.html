@@ -5,11 +5,148 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Liste de courses</title>
   <style>
-    /* [Styles identiques à la version précédente] */
-    /* ... */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #fdf6f0;
+      color: #333;
+    }
+    header {
+      background: #ffe8d6;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #8b5e3c;
+    }
+    #filter-indicator {
+      font-size: 14px;
+      color: #6b4c3b;
+      margin-top: 5px;
+    }
+    .container {
+      padding: 20px;
+    }
+    .category {
+      background: #fff9f4;
+      margin-bottom: 15px;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .category h3 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      color: #5e412f;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+    .category h3::before {
+      content: '🛒';
+      margin-right: 8px;
+    }
+    .item {
+      display: flex;
+      align-items: center;
+      padding: 5px 0;
+    }
+    .item input[type="checkbox"] {
+      margin-right: 10px;
+      transform: scale(1.3);
+    }
+    .item span {
+      flex: 1;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .add-btn {
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      background: #fcbf49;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      font-size: 30px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      cursor: pointer;
+    }
+    footer {
+      background: #fff3e6;
+      padding: 10px;
+      display: flex;
+      justify-content: space-around;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+    }
+    .footer-btn {
+      background: #f9d8a4;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      transition: background 0.3s;
+    }
+    .footer-btn:hover {
+      background: #fcbf49;
+      color: white;
+    }
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+    }
+    .modal input[type="email"] {
+      width: 80%;
+      padding: 8px;
+      margin: 10px 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .modal button {
+      padding: 8px 16px;
+      background: #fcbf49;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .error-msg {
+      color: red;
+      font-size: 14px;
+      margin-top: 5px;
+      display: none;
+    }
   </style>
 </head>
-<body style="display: none;">
+<body>
   <header>
     <div class="title">Liste de courses</div>
     <div id="filter-indicator"></div>
@@ -22,6 +159,17 @@
     <button class="footer-btn" onclick="filterItems()">🔍 Filtrer</button>
     <button class="footer-btn" onclick="resetFilters()">❌</button>
   </footer>
+
+  <div class="modal" id="loginModal">
+    <div class="modal-content">
+      <h3>Connexion</h3>
+      <p>Entrez votre adresse email pour accéder :</p>
+      <input type="email" id="emailInput" placeholder="email@exemple.com">
+      <br>
+      <button onclick="submitLogin()">Se connecter</button>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+  </div>
 
   <script>
     let defaultData = {
@@ -48,13 +196,78 @@
     let checkedItems = JSON.parse(localStorage.getItem("checkedItems")) || {};
     let authorizedUsers = JSON.parse(localStorage.getItem("authorizedUsers")) || ["mouchet.family@gmail.com"];
     let currentUser = null;
-    let activeFilterCategory = null;
-    let activeFilterLetter = null;
 
-    // ...
-    // Le reste du code JavaScript est inchangé, avec la fonction login(), renderList(), etc.
-    // Assurez-vous que login() est bien appelé à la fin du script :
-    window.onload = login;
+    function submitLogin() {
+      const email = document.getElementById("emailInput").value;
+      const errorMsg = document.getElementById("errorMsg");
+      errorMsg.style.display = "none";
+
+      if (!email) {
+        errorMsg.textContent = "Veuillez entrer un email.";
+        errorMsg.style.display = "block";
+        return;
+      }
+      if (!authorizedUsers.includes(email)) {
+        errorMsg.textContent = "Accès refusé.";
+        errorMsg.style.display = "block";
+        return;
+      }
+      currentUser = email;
+      document.getElementById("loginModal").style.display = "none";
+      renderList();
+    }
+
+    function renderList() {
+      const container = document.getElementById("list-container");
+      container.innerHTML = "";
+      for (const category in data) {
+        const section = document.createElement("div");
+        section.className = "category";
+        section.innerHTML = `<h3>${category}</h3>`;
+        data[category].forEach((item) => {
+          const itemDiv = document.createElement("div");
+          itemDiv.className = "item";
+          itemDiv.innerHTML = `<input type='checkbox'> <span>${item}</span>`;
+          section.appendChild(itemDiv);
+        });
+        container.appendChild(section);
+      }
+    }
+
+    function addItem() {
+      const category = prompt("Dans quel rayon ajouter cet article ?");
+      if (!category || !data[category]) return alert("Rayon invalide.");
+      const item = prompt("Quel article ajouter ?");
+      if (!item) return;
+      data[category].push(item);
+      localStorage.setItem("groceryData", JSON.stringify(data));
+      renderList();
+    }
+
+    function addCategory() {
+      const newCategory = prompt("Nom du nouveau rayon :");
+      if (!newCategory) return;
+      if (data[newCategory]) return alert("Ce rayon existe déjà.");
+      data[newCategory] = [];
+      localStorage.setItem("groceryData", JSON.stringify(data));
+      renderList();
+    }
+
+    function checkAll() {
+      document.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = true);
+    }
+
+    function filterItems() {
+      alert("Fonction de filtre à implémenter.");
+    }
+
+    function resetFilters() {
+      alert("Réinitialisation des filtres à implémenter.");
+    }
+
+    window.onload = () => {
+      document.getElementById("loginModal").style.display = "flex";
+    };
   </script>
 </body>
 </html>
